@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Heart, Book, Pray, Calendar, Users, User } from 'lucide-react';
+import { Heart, Book, HandHeart, Calendar, Users, User } from 'lucide-react';
 
 interface MobileNavigationProps {
   currentSection: string;
@@ -15,7 +15,7 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
 }) => {
   const navItems = [
     { id: 'devotionals', icon: Book, label: 'Devotionals' },
-    { id: 'prayers', icon: Pray, label: 'Prayers' },
+    { id: 'prayers', icon: HandHeart, label: 'Prayers' },
     { id: 'challenges', icon: Users, label: 'Together' },
     { id: 'habits', icon: Calendar, label: 'Habits' },
   ];
