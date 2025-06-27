@@ -63,12 +63,13 @@ export const devotionalService = {
   ): Promise<void> {
     const today = new Date().toISOString().split('T')[0];
     
-    // Save reflection
+    // Save reflection - include the required 'day' field
     await supabase
       .from('devotional_responses')
       .insert({
         user_id: userId,
         devotional_index: devotionalDay,
+        day: devotionalDay, // Add the required day field
         reflection: reflectionComment,
         date: today,
         completed: true
