@@ -30,7 +30,7 @@ const Devotional: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const currentDevotion = devotionals[currentDay - 1];
+  const currentDevotion = devotionals[currentDay - 1] || devotionals[0];
 
   useEffect(() => {
     loadDevotionalData();
@@ -61,11 +61,10 @@ const Devotional: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading devotional data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load devotional data.",
-        variant: "destructive"
-      });
+      // Set defaults if error occurs
+      setCurrentDay(1);
+      setIsCompleted(false);
+      setWeeklyStats({ completed: 0, total: 7 });
     }
   };
 

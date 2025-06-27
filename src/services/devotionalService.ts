@@ -1,5 +1,5 @@
 
-import { supabase } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface DevotionalProgress {
   id: string;
@@ -25,39 +25,30 @@ export interface DevotionalReflection {
 export const devotionalService = {
   // Get current devotional day based on user's start date and completion
   async getCurrentDevotionalDay(userId: string): Promise<number> {
-    const { data: progress } = await supabase
-      .from('devotional_progress')
+    const { data: responses } = await supabase
+      .from('devotional_responses')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-    if (!progress) {
-      // Create initial progress record
-      const { data: newProgress } = await supabase
-        .from('devotional_progress')
-        .insert({
-          user_id: userId,
-          current_day: 1,
-          completed_days: [],
-          last_completed: null
-        })
-        .select()
-        .single();
-      
+    if (!responses || responses.length === 0) {
       return 1;
     }
 
-    return progress.current_day;
+    // Get the latest day and increment by 1, or loop back to 1 after 25
+    const lastDay = responses[0].devotional_index;
+    return lastDay >= 25 ? 1 : lastDay + 1;
   },
 
   // Check if today's devotional is completed
   async isTodayCompleted(userId: string): Promise<boolean> {
     const today = new Date().toISOString().split('T')[0];
     const { data } = await supabase
-      .from('devotional_reflections')
+      .from('devotional_responses')
       .select('id')
       .eq('user_id', userId)
-      .eq('date_completed', today)
+      .eq('date', today)
       .single();
 
     return !!data;
@@ -74,50 +65,27 @@ export const devotionalService = {
     
     // Save reflection
     await supabase
-      .from('devotional_reflections')
+      .from('devotional_responses')
       .insert({
         user_id: userId,
-        partner_id: partnerId,
-        devotional_day: devotionalDay,
-        reflection_comment: reflectionComment,
-        completed_at: new Date().toISOString(),
-        date_completed: today
+        devotional_index: devotionalDay,
+        reflection: reflectionComment,
+        date: today,
+        completed: true
       });
-
-    // Update progress
-    const { data: currentProgress } = await supabase
-      .from('devotional_progress')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    if (currentProgress) {
-      const newCompletedDays = [...(currentProgress.completed_days || []), devotionalDay];
-      const nextDay = devotionalDay === 50 ? 1 : devotionalDay + 1; // Loop back to 1 after 50
-
-      await supabase
-        .from('devotional_progress')
-        .update({
-          current_day: nextDay,
-          completed_days: newCompletedDays,
-          last_completed: today,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', userId);
-    }
   },
 
   // Get partner's reflection for the same day
   async getPartnerReflection(partnerId: string, devotionalDay: number, date: string): Promise<string | null> {
     const { data } = await supabase
-      .from('devotional_reflections')
-      .select('reflection_comment')
+      .from('devotional_responses')
+      .select('reflection')
       .eq('user_id', partnerId)
-      .eq('devotional_day', devotionalDay)
-      .eq('date_completed', date)
+      .eq('devotional_index', devotionalDay)
+      .eq('date', date)
       .single();
 
-    return data?.reflection_comment || null;
+    return data?.reflection || null;
   },
 
   // Get completion stats for last 7 days
@@ -127,11 +95,11 @@ export const devotionalService = {
     startDate.setDate(startDate.getDate() - 6); // Last 7 days including today
 
     const { data } = await supabase
-      .from('devotional_reflections')
-      .select('date_completed')
+      .from('devotional_responses')
+      .select('date')
       .eq('user_id', userId)
-      .gte('date_completed', startDate.toISOString().split('T')[0])
-      .lte('date_completed', endDate.toISOString().split('T')[0]);
+      .gte('date', startDate.toISOString().split('T')[0])
+      .lte('date', endDate.toISOString().split('T')[0]);
 
     return {
       completed: data?.length || 0,
@@ -141,45 +109,30 @@ export const devotionalService = {
 
   // Sync partner devotional progress when accounts are linked
   async syncPartnerProgress(userId: string, partnerId: string): Promise<void> {
-    const { data: userProgress } = await supabase
-      .from('devotional_progress')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+    // Update partner links table
+    await supabase
+      .from('partner_links')
+      .upsert({
+        user_id: userId,
+        partner_id: partnerId
+      });
 
-    const { data: partnerProgress } = await supabase
-      .from('devotional_progress')
-      .select('*')
-      .eq('user_id', partnerId)
-      .single();
+    await supabase
+      .from('partner_links')
+      .upsert({
+        user_id: partnerId,
+        partner_id: userId
+      });
 
-    // Set both to start from day 1 if either hasn't started
-    const syncDay = (!userProgress && !partnerProgress) ? 1 : 
-                   (userProgress?.current_day || partnerProgress?.current_day || 1);
+    // Update profiles with partner information
+    await supabase
+      .from('profiles')
+      .update({ partner_id: partnerId })
+      .eq('id', userId);
 
-    const updates = [
-      supabase
-        .from('devotional_progress')
-        .upsert({
-          user_id: userId,
-          partner_id: partnerId,
-          current_day: syncDay,
-          completed_days: userProgress?.completed_days || [],
-          last_completed: userProgress?.last_completed || null,
-          updated_at: new Date().toISOString()
-        }),
-      supabase
-        .from('devotional_progress')
-        .upsert({
-          user_id: partnerId,
-          partner_id: userId,
-          current_day: syncDay,
-          completed_days: partnerProgress?.completed_days || [],
-          last_completed: partnerProgress?.last_completed || null,
-          updated_at: new Date().toISOString()
-        })
-    ];
-
-    await Promise.all(updates);
+    await supabase
+      .from('profiles')
+      .update({ partner_id: userId })
+      .eq('id', partnerId);
   }
 };
