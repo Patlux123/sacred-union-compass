@@ -53,10 +53,30 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdateProfile,
     }
   };
 
-  const handleLinkPartner = () => {
+  const handleLinkPartner = async () => {
     if (partnerCode.trim()) {
-      onLinkPartner(partnerCode.trim());
-      setPartnerCode('');
+      try {
+        await onLinkPartner(partnerCode.trim());
+        
+        // Sync devotional progress when partners are linked
+        if (user.partnerId) {
+          const { devotionalService } = await import('@/services/devotionalService');
+          await devotionalService.syncPartnerProgress(user.id, user.partnerId);
+          
+          toast({
+            title: "Partners Linked!",
+            description: "Your devotional progress has been synchronized.",
+          });
+        }
+        
+        setPartnerCode('');
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to link partner. Please check the code and try again.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
