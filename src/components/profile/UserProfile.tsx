@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,10 +23,9 @@ interface UserProfileProps {
   onUpdateProfile: (updates: Partial<User>) => void;
   onLinkPartner: (partnerCode: string) => void;
   onLogout: () => void;
-  onBack: () => void;
 }
 
-export const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdateProfile, onLinkPartner, onLogout, onBack }) => {
+export const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdateProfile, onLinkPartner, onLogout }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user.name);
   const [partnerCode, setPartnerCode] = useState('');
@@ -53,30 +53,10 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdateProfile,
     }
   };
 
-  const handleLinkPartner = async () => {
+  const handleLinkPartner = () => {
     if (partnerCode.trim()) {
-      try {
-        await onLinkPartner(partnerCode.trim());
-        
-        // Sync devotional progress when partners are linked
-        if (user.partnerId) {
-          const { devotionalService } = await import('@/services/devotionalService');
-          await devotionalService.syncPartnerProgress(user.id, user.partnerId);
-          
-          toast({
-            title: "Partners Linked!",
-            description: "Your devotional progress has been synchronized.",
-          });
-        }
-        
-        setPartnerCode('');
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to link partner. Please check the code and try again.",
-          variant: "destructive"
-        });
-      }
+      onLinkPartner(partnerCode.trim());
+      setPartnerCode('');
     }
   };
 
@@ -85,11 +65,6 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdateProfile,
       <div className="max-w-md mx-auto space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-5 w-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
-          </Button>
           <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
             Profile
           </h1>
